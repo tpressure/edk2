@@ -327,6 +327,10 @@ VirtioFlush (
   PollPeriodUsecs = 1;
   MemoryFence ();
   while (*Ring->Used.Idx != NextAvailIdx) {
+    DEBUG ((
+      DEBUG_INFO,
+      "."
+      ));
     gBS->Stall (PollPeriodUsecs); // calls AcpiTimerLib::MicroSecondDelay
 
     if (PollPeriodUsecs < 1024) {

@@ -101,6 +101,11 @@ GetRandomNumber16 (
 {
   EFI_STATUS  Status;
 
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG line %d\n", __LINE__
+    ));
+
   if (Rand == NULL) {
     return FALSE;
   }
@@ -131,6 +136,10 @@ GetRandomNumber32 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;
@@ -162,6 +171,10 @@ GetRandomNumber64 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;
@@ -193,6 +206,10 @@ GetRandomNumber128 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;

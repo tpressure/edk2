@@ -945,6 +945,10 @@ PseudoRandom (
     return Status;
   }
 
+  DEBUG ((
+    DEBUG_INFO,
+    "DxeNetLib line %d\n", __LINE__
+    ));
   if (PcdGetBool (PcdEnforceSecureRngAlgorithms)) {
     for (AlgorithmIndex = 0; AlgorithmIndex < SECURE_HASH_ALGORITHMS_SIZE; AlgorithmIndex++) {
       Status = RngProtocol->GetRNG (RngProtocol, mSecureHashAlgorithms[AlgorithmIndex], OutputLength, (UINT8 *)Output);

@@ -164,6 +164,10 @@ GenerateRandomNumberViaNist800Algorithm (
     return EFI_NOT_FOUND;
   }
 
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG DXE line %d\n", __LINE__
+    ));
   // Try the first available algorithm.
   if (mFirstAlgo != MAX_UINTN) {
     Algo   = &mSecureHashAlgorithms[mFirstAlgo];
@@ -271,6 +275,10 @@ GetRandomNumber32 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG DXE line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;
@@ -302,6 +310,10 @@ GetRandomNumber64 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG DXE line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;
@@ -333,6 +345,10 @@ GetRandomNumber128 (
   )
 {
   EFI_STATUS  Status;
+  DEBUG ((
+    DEBUG_INFO,
+    "RNG DXE line %d\n", __LINE__
+    ));
 
   if (Rand == NULL) {
     return FALSE;

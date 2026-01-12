@@ -25,6 +25,25 @@
 
 #include "VirtioRng.h"
 
+static unsigned rng_counter = 0;
+
+STATIC
+UINT8
+GetApicIdViaCpuid (
+  VOID
+  )
+{
+  UINT32 Eax, Ebx, Ecx, Edx;
+
+  __asm__ __volatile__ (
+    "cpuid"
+    : "=a"(Eax), "=b"(Ebx), "=c"(Ecx), "=d"(Edx)
+    : "a"(1)
+    : "memory", "cc"
+  );
+
+  return (UINT8)(Ebx >> 24);
+}
 /**
   Returns information about the random number generation implementation.
 
@@ -137,10 +156,12 @@ VirtioRngGetRNG (
   EFI_PHYSICAL_ADDRESS  DeviceAddress;
   VOID                  *Mapping;
 
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
   if ((This == NULL) || (RNGValueLength == 0) || (RNGValue == NULL)) {
     return EFI_INVALID_PARAMETER;
   }
 
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
   //
   // We only support the raw algorithm, so reject requests for anything else
   //
@@ -149,17 +170,20 @@ VirtioRngGetRNG (
   {
     return EFI_UNSUPPORTED;
   }
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
 
   Buffer = (volatile UINT8 *)AllocatePool (RNGValueLength);
   if (Buffer == NULL) {
     return EFI_DEVICE_ERROR;
   }
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
 
   Dev = VIRTIO_ENTROPY_SOURCE_FROM_RNG (This);
   if (!Dev->Ready) {
     DEBUG ((DEBUG_INFO, "%a: not ready\n", __func__));
     return EFI_DEVICE_ERROR;
   }
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
 
   //
   // Map Buffer's system physical address to device address
@@ -172,16 +196,26 @@ VirtioRngGetRNG (
              &DeviceAddress,
              &Mapping
              );
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
   if (EFI_ERROR (Status)) {
     Status = EFI_DEVICE_ERROR;
     goto FreeBuffer;
   }
+  /* DEBUG (( DEBUG_INFO, "  rng:%d\n", __LINE__ )); */
 
   //
   // The Virtio RNG device may return less data than we asked it to, and can
   // only return MAX_UINT32 bytes per invocation. So loop as long as needed to
   // get all the entropy we were asked for.
   //
+
+  unsigned count = rng_counter++;
+
+  DEBUG ((
+    DEBUG_INFO,
+    "Enter RNG loop from apic-id:%x TPL:%x: %ld\n", GetApicIdViaCpuid(), CurrentTpl, count
+    ));
+
   for (Index = 0; Index < RNGValueLength; Index += Len) {
     BufferSize = (UINT32)MIN (RNGValueLength - Index, (UINTN)MAX_UINT32);
 
@@ -197,6 +231,10 @@ VirtioRngGetRNG (
     if (VirtioFlush (Dev->VirtIo, 0, &Dev->Ring, &Indices, &Len) !=
         EFI_SUCCESS)
     {
+    DEBUG ((
+      DEBUG_INFO,
+      "Leaving RNG loop error %ld\n", count
+      ));
       Status = EFI_DEVICE_ERROR;
       goto UnmapBuffer;
     }
@@ -204,6 +242,10 @@ VirtioRngGetRNG (
     ASSERT (Len > 0);
     ASSERT (Len <= BufferSize);
   }
+  DEBUG ((
+    DEBUG_INFO,
+    "Leaving RNG loop from apic-id %d: %ld\n", GetApicIdViaCpuid(), count
+    ));
 
   //
   // Unmap the device buffer before accessing it.

@@ -628,6 +628,10 @@ VirtioFsSgListsSubmit (
   //
   // Submit the descriptor chain.
   //
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioFS: Entering VirtioFlush\n"
+      ));
   Status = VirtioFlush (
              VirtioFs->Virtio,
              VIRTIO_FS_REQUEST_QUEUE,
@@ -635,6 +639,10 @@ VirtioFsSgListsSubmit (
              &Indices,
              &TotalBytesWrittenByDevice
              );
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioFS: Finished VirtioFlush\n"
+      ));
   if (EFI_ERROR (Status)) {
     goto Unmap;
   }

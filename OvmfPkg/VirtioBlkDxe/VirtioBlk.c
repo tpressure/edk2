@@ -424,6 +424,10 @@ SynchronousRequest (
   //
   // virtio-blk's only virtqueue is #0, called "requestq" (see Appendix D).
   //
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX: VirtioBlk: Entering VirtioFlush\n"
+      ));
   if ((VirtioFlush (
          Dev->VirtIo,
          0,
@@ -437,6 +441,11 @@ SynchronousRequest (
   } else {
     Status = EFI_DEVICE_ERROR;
   }
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioBlk: Finished VirtioFlush\n"
+      ));
+
 
   Dev->VirtIo->UnmapSharedBuffer (Dev->VirtIo, StatusMapping);
 

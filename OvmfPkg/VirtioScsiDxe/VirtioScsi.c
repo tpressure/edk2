@@ -656,6 +656,10 @@ VirtioScsiPassThru (
   // EFI_NOT_READY would save us the effort, but it would also suggest that the
   // caller retry.
   //
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXXXXXXXXXXXXXXXXXXXXXX: VirtioScsi: Entering VirtioFlush\n"
+      ));
   if (VirtioFlush (
         Dev->VirtIo,
         VIRTIO_SCSI_REQUEST_QUEUE,
@@ -664,9 +668,17 @@ VirtioScsiPassThru (
         NULL
         ) != EFI_SUCCESS)
   {
+    DEBUG ((
+        DEBUG_INFO,
+        "XXXXX VirtioScsi: Finished VirtioFlush\n"
+        ));
     Status = ReportHostAdapterError (Packet);
     goto UnmapResponseBuffer;
   }
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioScsi: Finished VirtioFlush\n"
+      ));
 
   Status = ParseResponse (Packet, Response);
 

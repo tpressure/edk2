@@ -498,6 +498,10 @@ VirtioGpuSendCommandWithReply (
   //
   // Send the command.
   //
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioGPU: Entering VirtioFlush\n"
+      ));
   Status = VirtioFlush (
              VgpuDev->VirtIo,
              VIRTIO_GPU_CONTROL_QUEUE,
@@ -505,6 +509,10 @@ VirtioGpuSendCommandWithReply (
              &Indices,
              &ResponseSizeRet
              );
+  DEBUG ((
+      DEBUG_INFO,
+      "XXXXX VirtioGPU: Finished VirtioFlush\n"
+      ));
   if (EFI_ERROR (Status)) {
     goto UnmapResponse;
   }
