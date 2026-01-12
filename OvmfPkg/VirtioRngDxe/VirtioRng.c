@@ -210,6 +210,9 @@ VirtioRngGetRNG (
   //
 
   unsigned count = rng_counter++;
+  EFI_TPL  CurrentTpl;
+
+  CurrentTpl = gBS->RaiseTPL (TPL_HIGH_LEVEL);
 
   DEBUG ((
     DEBUG_INFO,
@@ -247,6 +250,7 @@ VirtioRngGetRNG (
     "Leaving RNG loop from apic-id %d: %ld\n", GetApicIdViaCpuid(), count
     ));
 
+  gBS->RestoreTPL (CurrentTpl);
   //
   // Unmap the device buffer before accessing it.
   //
