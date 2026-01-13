@@ -25,6 +25,8 @@
 
 #include "VirtioRng.h"
 
+static unsigned rng_counter = 0;
+
 /**
   Returns information about the random number generation implementation.
 
@@ -136,6 +138,10 @@ VirtioRngGetRNG (
   EFI_STATUS            Status;
   EFI_PHYSICAL_ADDRESS  DeviceAddress;
   VOID                  *Mapping;
+  EFI_TPL  CurrentTpl;
+
+  CurrentTpl = gBS->RaiseTPL (TPL_HIGH_LEVEL);
+  gBS->RestoreTPL (CurrentTpl);
 
   if ((This == NULL) || (RNGValueLength == 0) || (RNGValue == NULL)) {
     return EFI_INVALID_PARAMETER;
@@ -182,6 +188,11 @@ VirtioRngGetRNG (
   // only return MAX_UINT32 bytes per invocation. So loop as long as needed to
   // get all the entropy we were asked for.
   //
+
+  unsigned count = rng_counter++;
+
+  DEBUG ((DEBUG_INFO, "Enter RNG loop TPL:%x: %ld\n", CurrentTpl, count ));
+
   for (Index = 0; Index < RNGValueLength; Index += Len) {
     BufferSize = (UINT32)MIN (RNGValueLength - Index, (UINTN)MAX_UINT32);
 
@@ -197,6 +208,7 @@ VirtioRngGetRNG (
     if (VirtioFlush (Dev->VirtIo, 0, &Dev->Ring, &Indices, &Len) !=
         EFI_SUCCESS)
     {
+      DEBUG ((DEBUG_INFO, "Leaving RNG loop error %ld\n", count));
       Status = EFI_DEVICE_ERROR;
       goto UnmapBuffer;
     }
@@ -204,6 +216,7 @@ VirtioRngGetRNG (
     ASSERT (Len > 0);
     ASSERT (Len <= BufferSize);
   }
+  DEBUG ((DEBUG_INFO, "Leaving RNG loop: %ld\n", count));
 
   //
   // Unmap the device buffer before accessing it.
