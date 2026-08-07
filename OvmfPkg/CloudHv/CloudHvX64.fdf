@@ -233,6 +233,16 @@ INF  OvmfPkg/Virtio10Dxe/Virtio10.inf
 INF  OvmfPkg/VirtioBlkDxe/VirtioBlk.inf
 INF  OvmfPkg/VirtioScsiDxe/VirtioScsi.inf
 INF  OvmfPkg/VirtioRngDxe/VirtioRng.inf
+INF  OvmfPkg/QemuRamfbDxe/QemuRamfbDxe.inf
+!if $(PVSCSI_ENABLE) == TRUE
+INF  OvmfPkg/PvScsiDxe/PvScsiDxe.inf
+!endif
+!if $(MPT_SCSI_ENABLE) == TRUE
+INF  OvmfPkg/MptScsiDxe/MptScsiDxe.inf
+!endif
+!if $(LSI_SCSI_ENABLE) == TRUE
+INF  OvmfPkg/LsiScsiDxe/LsiScsiDxe.inf
+!endif
 
 !if $(SECURE_BOOT_ENABLE) == TRUE
   INF  SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
@@ -293,9 +303,7 @@ INF MdeModulePkg/Logo/LogoDxe.inf
   }
 !endif
 !include NetworkPkg/Network.fdf.inc
-!if $(NETWORK_ENABLE) == TRUE
   INF  OvmfPkg/VirtioNetDxe/VirtioNet.inf
-!endif
 
 INF  OvmfPkg/PlatformDxe/Platform.inf
 INF  OvmfPkg/AmdSevDxe/AmdSevDxe.inf
@@ -336,7 +344,6 @@ INF  MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
 # TPM support
 #
 !include OvmfPkg/Include/Fdf/OvmfTpmDxe.fdf.inc
-!include OvmfPkg/Include/Fdf/OvmfOptHw.fdf.inc
 
 ################################################################################
 
