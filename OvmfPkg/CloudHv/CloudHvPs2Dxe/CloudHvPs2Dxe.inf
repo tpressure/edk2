@@ -1,0 +1,34 @@
+## @file
+# Expose Cloud Hypervisor's legacy PS/2 controller to standard EDK2 drivers.
+#
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = CloudHvPs2Dxe
+  FILE_GUID                      = 47D1BDB8-2F56-4B34-B798-5EA1A44B4D1B
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = CloudHvPs2DxeEntryPoint
+
+[Sources]
+  CloudHvPs2Dxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  DebugLib
+  UefiBootManagerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiSioProtocolGuid
+  gEfiVariableWriteArchProtocolGuid
+
+[Depex]
+  gEfiVariableWriteArchProtocolGuid
