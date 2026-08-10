@@ -781,6 +781,8 @@
   OvmfPkg/VirtioScsiDxe/VirtioScsi.inf
   OvmfPkg/VirtioRngDxe/VirtioRng.inf
   OvmfPkg/QemuRamfbDxe/QemuRamfbDxe.inf
+  OvmfPkg/CloudHv/CloudHvPs2Dxe/CloudHvPs2Dxe.inf
+  MdeModulePkg/Bus/Isa/Ps2KeyboardDxe/Ps2KeyboardDxe.inf
 !if $(PVSCSI_ENABLE) == TRUE
   OvmfPkg/PvScsiDxe/PvScsiDxe.inf
 !endif
