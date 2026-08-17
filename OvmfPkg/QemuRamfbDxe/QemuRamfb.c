@@ -314,9 +314,9 @@ InitializeQemuRamfb (
   mQemuRamfbMode.FrameBufferBase = FbBase;
 
   //
-  // 800 x 600
+  // 1024 x 768
   //
-  QemuRamfbGraphicsOutputSetMode (&mQemuRamfbGraphicsOutput, 1);
+  QemuRamfbGraphicsOutputSetMode (&mQemuRamfbGraphicsOutput, 2);
 
   //
   // ramfb vendor devpath
