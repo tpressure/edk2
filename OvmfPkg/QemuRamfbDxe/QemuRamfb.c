@@ -3,12 +3,15 @@
   for the QEMU ramfb device.
 
   Copyright (c) 2018, Red Hat Inc.
+  Copyright (c) 2026, Cyberus Technology GmbH.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
 #include <Protocol/GraphicsOutput.h>
+#include <Protocol/PciEnumerationComplete.h>
+#include <Protocol/PciIo.h>
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
@@ -17,12 +20,16 @@
 #include <Library/FrameBufferBltLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiLib.h>
 #include <Library/QemuFwCfgLib.h>
 
 #include <Guid/QemuRamfb.h>
 
-#define RAMFB_FORMAT  0x34325258 /* DRM_FORMAT_XRGB8888 */
-#define RAMFB_BPP     4
+#define RAMFB_FORMAT           0x34325258 /* DRM_FORMAT_XRGB8888 */
+#define RAMFB_BPP              4
+#define DISPLAY_HID_VENDOR_ID  0x8086
+#define DISPLAY_HID_DEVICE_ID  0x7020
+#define DISPLAY_HID_BAR_INDEX  0
 
 #pragma pack (1)
 typedef struct RAMFB_CONFIG {
@@ -40,6 +47,143 @@ STATIC EFI_HANDLE              mGopHandle;
 STATIC FRAME_BUFFER_CONFIGURE  *mQemuRamfbFrameBufferBltConfigure;
 STATIC UINTN                   mQemuRamfbFrameBufferBltConfigureSize;
 STATIC FIRMWARE_CONFIG_ITEM    mRamfbFwCfgItem;
+STATIC UINT64                  mPublishedFrameBufferBase;
+STATIC VOID                    *mPciEnumerationRegistration;
+STATIC BOOLEAN                 mFramebufferAddressPublished;
+
+STATIC
+EFI_STATUS
+PublishFramebufferAddress (
+  VOID
+  )
+{
+  EFI_HANDLE           *Handles;
+  EFI_PCI_IO_PROTOCOL  *PciIo;
+  EFI_STATUS           Status;
+  UINTN                Count;
+  UINTN                Index;
+  UINT16               Identity[2];
+  UINT32               Bar0;
+  UINT64               FrameBufferBase;
+
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEfiPciIoProtocolGuid,
+                  NULL,
+                  &Count,
+                  &Handles
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = EFI_NOT_FOUND;
+  for (Index = 0; Index < Count; Index++) {
+    if (EFI_ERROR (gBS->HandleProtocol (
+                         Handles[Index],
+                         &gEfiPciIoProtocolGuid,
+                         (VOID **)&PciIo
+                         )))
+    {
+      continue;
+    }
+
+    if (EFI_ERROR (PciIo->Pci.Read (
+                              PciIo,
+                              EfiPciIoWidthUint16,
+                              0,
+                              2,
+                              Identity
+                              )) ||
+        (Identity[0] != DISPLAY_HID_VENDOR_ID) ||
+        (Identity[1] != DISPLAY_HID_DEVICE_ID))
+    {
+      continue;
+    }
+
+    // The real PIIX3 UHCI device has no BAR0. Require an assigned MMIO BAR.
+    if (EFI_ERROR (PciIo->Pci.Read (
+                              PciIo,
+                              EfiPciIoWidthUint32,
+                              0x10,
+                              1,
+                              &Bar0
+                              )) ||
+        ((Bar0 & 1) != 0) ||
+        ((Bar0 & 0xfffff000) == 0))
+    {
+      continue;
+    }
+
+    Status = PciIo->Attributes (
+                      PciIo,
+                      EfiPciIoAttributeOperationEnable,
+                      EFI_PCI_IO_ATTRIBUTE_MEMORY,
+                      NULL
+                      );
+    if (EFI_ERROR (Status)) {
+      break;
+    }
+
+    // BAR0 offset zero is a little-endian 64-bit framebuffer GPA.
+    FrameBufferBase = mPublishedFrameBufferBase;
+    Status          = PciIo->Mem.Write (
+                                 PciIo,
+                                 EfiPciIoWidthUint64,
+                                 DISPLAY_HID_BAR_INDEX,
+                                 0,
+                                 1,
+                                 &FrameBufferBase
+                                 );
+    if (!EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_INFO,
+        "Ramfb: published framebuffer GPA 0x%lx to display HID BAR0\n",
+        FrameBufferBase
+        ));
+    }
+
+    break;
+  }
+
+  FreePool (Handles);
+  return Status;
+}
+
+STATIC
+VOID
+EFIAPI
+OnPciEnumerationComplete (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_STATUS  Status;
+  VOID        *Interface;
+
+  if (mFramebufferAddressPublished) {
+    return;
+  }
+
+  (VOID)Event;
+  (VOID)Context;
+
+  Status = gBS->LocateProtocol (
+                  &gEfiPciEnumerationCompleteProtocolGuid,
+                  NULL,
+                  &Interface
+                  );
+  if (EFI_ERROR (Status)) {
+    return;
+  }
+
+  Status = PublishFramebufferAddress ();
+  if (!EFI_ERROR (Status)) {
+    mFramebufferAddressPublished = TRUE;
+  } else if (Status != EFI_NOT_FOUND) {
+    DEBUG ((DEBUG_WARN, "Ramfb: publishing framebuffer GPA failed: %r\n", Status));
+  }
+}
 
 STATIC EFI_GRAPHICS_OUTPUT_MODE_INFORMATION  mQemuRamfbModeInfo[] = {
   {
@@ -251,6 +395,7 @@ InitializeQemuRamfb (
   UINTN                     FbSize, MaxFbSize, Pages;
   UINTN                     FwCfgSize;
   UINTN                     Index;
+  EFI_EVENT                 PciEnumerationEvent;
 
   if (!QemuFwCfgIsAvailable ()) {
     DEBUG ((DEBUG_INFO, "Ramfb: no FwCfg\n"));
@@ -312,6 +457,7 @@ InitializeQemuRamfb (
     ));
   mQemuRamfbMode.FrameBufferSize = MaxFbSize;
   mQemuRamfbMode.FrameBufferBase = FbBase;
+  mPublishedFrameBufferBase      = FbBase;
 
   //
   // 1024 x 768
@@ -410,6 +556,19 @@ InitializeQemuRamfb (
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "Ramfb: OpenProtocol failed: %r\n", Status));
     goto FreeGopHandle;
+  }
+
+  // PCI BARs may not be assigned when this driver starts. Publish the GPA
+  // after enumeration, or immediately if enumeration already completed.
+  PciEnumerationEvent = EfiCreateProtocolNotifyEvent (
+                          &gEfiPciEnumerationCompleteProtocolGuid,
+                          TPL_CALLBACK,
+                          OnPciEnumerationComplete,
+                          NULL,
+                          &mPciEnumerationRegistration
+                          );
+  if (PciEnumerationEvent == NULL) {
+    DEBUG ((DEBUG_WARN, "Ramfb: could not watch PCI enumeration\n"));
   }
 
   return EFI_SUCCESS;

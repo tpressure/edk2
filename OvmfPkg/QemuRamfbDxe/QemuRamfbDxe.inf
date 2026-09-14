@@ -3,6 +3,7 @@
 #  for the QEMU ramfb device.
 #
 #  Copyright (c) 2018, Red Hat Inc.
+#  Copyright (c) 2026, Cyberus Technology GmbH.
 #
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
 #
@@ -34,10 +35,13 @@
   MemoryAllocationLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
+  UefiLib
   QemuFwCfgLib
 
 [Protocols]
   gEfiGraphicsOutputProtocolGuid                ## PRODUCES
+  gEfiPciIoProtocolGuid                          ## CONSUMES
+  gEfiPciEnumerationCompleteProtocolGuid         ## CONSUMES
 
 [Guids]
   gQemuRamfbGuid
