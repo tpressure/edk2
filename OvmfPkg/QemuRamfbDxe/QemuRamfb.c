@@ -48,12 +48,14 @@ STATIC FRAME_BUFFER_CONFIGURE  *mQemuRamfbFrameBufferBltConfigure;
 STATIC UINTN                   mQemuRamfbFrameBufferBltConfigureSize;
 STATIC FIRMWARE_CONFIG_ITEM    mRamfbFwCfgItem;
 STATIC UINT64                  mPublishedFrameBufferBase;
+// BAR0 offsets 8..23: width, height, stride in bytes, DRM format (little endian).
+STATIC UINT32                  mPublishedFrameBufferGeometry[4];
 STATIC VOID                    *mPciEnumerationRegistration;
-STATIC BOOLEAN                 mFramebufferAddressPublished;
+STATIC BOOLEAN                 mFramebufferConfigPublished;
 
 STATIC
 EFI_STATUS
-PublishFramebufferAddress (
+PublishFramebufferConfig (
   VOID
   )
 {
@@ -62,6 +64,7 @@ PublishFramebufferAddress (
   EFI_STATUS           Status;
   UINTN                Count;
   UINTN                Index;
+  UINTN                Field;
   UINT16               Identity[2];
   UINT32               Bar0;
   UINT64               FrameBufferBase;
@@ -125,7 +128,26 @@ PublishFramebufferAddress (
       break;
     }
 
-    // BAR0 offset zero is a little-endian 64-bit framebuffer GPA.
+    // Stage the geometry first. The final 64-bit GPA write at offset zero
+    // publishes all fields together, including on later GOP mode changes.
+    for (Field = 0; Field < ARRAY_SIZE (mPublishedFrameBufferGeometry); Field++) {
+      Status = PciIo->Mem.Write (
+                             PciIo,
+                             EfiPciIoWidthUint32,
+                             DISPLAY_HID_BAR_INDEX,
+                             sizeof (UINT64) + Field * sizeof (UINT32),
+                             1,
+                             &mPublishedFrameBufferGeometry[Field]
+                             );
+      if (EFI_ERROR (Status)) {
+        break;
+      }
+    }
+
+    if (EFI_ERROR (Status)) {
+      break;
+    }
+
     FrameBufferBase = mPublishedFrameBufferBase;
     Status          = PciIo->Mem.Write (
                                  PciIo,
@@ -138,8 +160,12 @@ PublishFramebufferAddress (
     if (!EFI_ERROR (Status)) {
       DEBUG ((
         DEBUG_INFO,
-        "Ramfb: published framebuffer GPA 0x%lx to display HID BAR0\n",
-        FrameBufferBase
+        "Ramfb: published framebuffer GPA 0x%lx, %ux%u, stride %u, format 0x%x to display HID BAR0\n",
+        FrameBufferBase,
+        mPublishedFrameBufferGeometry[0],
+        mPublishedFrameBufferGeometry[1],
+        mPublishedFrameBufferGeometry[2],
+        mPublishedFrameBufferGeometry[3]
         ));
     }
 
@@ -161,7 +187,7 @@ OnPciEnumerationComplete (
   EFI_STATUS  Status;
   VOID        *Interface;
 
-  if (mFramebufferAddressPublished) {
+  if (mFramebufferConfigPublished) {
     return;
   }
 
@@ -177,11 +203,11 @@ OnPciEnumerationComplete (
     return;
   }
 
-  Status = PublishFramebufferAddress ();
+  Status = PublishFramebufferConfig ();
   if (!EFI_ERROR (Status)) {
-    mFramebufferAddressPublished = TRUE;
+    mFramebufferConfigPublished = TRUE;
   } else if (Status != EFI_NOT_FOUND) {
-    DEBUG ((DEBUG_WARN, "Ramfb: publishing framebuffer GPA failed: %r\n", Status));
+    DEBUG ((DEBUG_WARN, "Ramfb: publishing framebuffer configuration failed: %r\n", Status));
   }
 }
 
@@ -312,6 +338,16 @@ QemuRamfbGraphicsOutputSetMode (
 
   QemuFwCfgSelectItem (mRamfbFwCfgItem);
   QemuFwCfgWriteBytes (sizeof (Config), &Config);
+
+  // Keep the standard big-endian fw_cfg RAMFB record unchanged. Our optional
+  // PCI mailbox uses native little-endian fields and follows every GOP mode.
+  mPublishedFrameBufferBase        = mQemuRamfbMode.FrameBufferBase;
+  mPublishedFrameBufferGeometry[0] = ModeInfo->HorizontalResolution;
+  mPublishedFrameBufferGeometry[1] = ModeInfo->VerticalResolution;
+  mPublishedFrameBufferGeometry[2] = ModeInfo->PixelsPerScanLine * RAMFB_BPP;
+  mPublishedFrameBufferGeometry[3] = RAMFB_FORMAT;
+  mFramebufferConfigPublished      = FALSE;
+  OnPciEnumerationComplete (NULL, NULL);
 
   //
   // clear screen
@@ -457,7 +493,6 @@ InitializeQemuRamfb (
     ));
   mQemuRamfbMode.FrameBufferSize = MaxFbSize;
   mQemuRamfbMode.FrameBufferBase = FbBase;
-  mPublishedFrameBufferBase      = FbBase;
 
   //
   // 1024 x 768
@@ -558,7 +593,7 @@ InitializeQemuRamfb (
     goto FreeGopHandle;
   }
 
-  // PCI BARs may not be assigned when this driver starts. Publish the GPA
+  // PCI BARs may not be assigned when this driver starts. Publish the mode
   // after enumeration, or immediately if enumeration already completed.
   PciEnumerationEvent = EfiCreateProtocolNotifyEvent (
                           &gEfiPciEnumerationCompleteProtocolGuid,
